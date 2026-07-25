@@ -2275,19 +2275,23 @@ function updateCountdown() {
   }
   bar.style.display = "flex";
   const now = Date.now();
-  const allPast = countdownTargets.every(t => t.time <= now);
-  if (allPast) {
-    bar.innerHTML = countdownTargets.map(t =>
-      `<div class="countdown-item" style="border-left-color:var(--green)"><div class="label">${t.exam}</div><div class="exam">${escHtml(t.name)}</div>` +
-      (t.booked
-        ? `<div class="time" style="color:var(--green)">Booked ✅</div>`
-        : `<div class="time critical">Slot passed</div>`) +
-      `<div class="city">${escHtml(t.city)}</div></div>`
-    ).join("");
-    return;
-  }
+  // Registration STAYS OPEN for a long window after it opens (Goethe: ~2 weeks).
+  // Reaching the open time is the START of booking, not the end — so don't label
+  // it "Slot passed" the moment the countdown hits zero.
+  const OPEN_WINDOW_MS = 6 * 3600000;
   bar.innerHTML = countdownTargets.map(t => {
     const diff = t.time - now;
+    if (t.booked) {
+      return `<div class="countdown-item" style="border-left-color:var(--green)"><div class="label">${t.exam}</div><div class="exam">${escHtml(t.name)}</div><div class="time" style="color:var(--green)">Booked ✅</div><div class="city">${escHtml(t.city)}</div></div>`;
+    }
+    if (diff <= 0) {
+      const open = -diff < OPEN_WINDOW_MS;
+      return `<div class="countdown-item" style="border-left-color:${open ? 'var(--green)' : 'var(--red)'}"><div class="label">${t.exam}</div><div class="exam">${escHtml(t.name)}</div>` +
+        (open
+          ? `<div class="time" style="color:var(--green)">OPEN NOW</div>`
+          : `<div class="time critical">Slot passed</div>`) +
+        `<div class="city">${escHtml(t.city)}</div></div>`;
+    }
     const cls = diff < 60000 ? "critical" : diff < 300000 ? "urgent" : "";
     return `<div class="countdown-item" style="border-left-color:${diff < 60000 ? 'var(--red)' : diff < 300000 ? 'var(--yellow)' : 'var(--accent)'}"><div class="label">${t.exam}</div><div class="exam">${escHtml(t.name)}</div><div class="time ${cls}">${fmtCountdown(diff)}</div><div class="city">${escHtml(t.city)}</div></div>`;
   }).join("");
