@@ -380,6 +380,7 @@ def create_driver(use_headless: bool, logger: logging.Logger, proxy: Optional[st
 
     # ── Memory optimization for Railway 512MB ──
     options.add_argument("--process-per-site")
+    options.add_argument("--no-zygote")
     options.add_argument("--disable-component-update")
     options.add_argument("--disable-component-extensions-with-background-pages")
     options.add_argument("--disable-background-timer-throttling")

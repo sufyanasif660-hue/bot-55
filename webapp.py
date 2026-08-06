@@ -1603,6 +1603,45 @@ def restart_bot():
     start_bot_from_telegram()
 
 
+def _make_bounded_server(host: str, port: int, max_threads: int):
+    """Capped threaded WSGI server.
+
+    Flask's built-in ``app.run(threaded=True)`` spawns an unbounded thread per
+    request. On Railway's 512MB Hobby container, health checks + SSE clients +
+    websocket clients together blow past the container's thread limit, and every
+    new request then dies with ``RuntimeError: can't start new thread`` — which
+    is also why the booking worker thread silently never starts (no logs).
+
+    This server caps concurrent request threads via a semaphore: excess
+    connections wait in the backlog instead of creating a thread each.
+    """
+    import socketserver
+    from werkzeug.serving import ThreadedWSGIServer
+
+    class _BoundedThreadedWSGIServer(ThreadedWSGIServer):
+        daemon_threads = True
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._slots = threading.BoundedSemaphore(max_threads)
+
+        def process_request(self, request, client_address):
+            self._slots.acquire()
+            try:
+                super().process_request(request, client_address)
+            except BaseException:
+                self._slots.release()
+                raise
+
+        def process_request_thread(self, request, client_address):
+            try:
+                super().process_request_thread(request, client_address)
+            finally:
+                self._slots.release()
+
+    return _BoundedThreadedWSGIServer(host, port, app)
+
+
 def main():
     global config_path
     default_cfg = PROJECT_DIR / "config.csv"
@@ -1636,7 +1675,8 @@ def main():
     print("=" * 55)
     print("  Press Ctrl+C to stop the server")
 
-    app.run(host=host, port=port, debug=False, threaded=True)
+    max_threads = int(os.environ.get("MAX_SERVER_THREADS", "16"))
+    _make_bounded_server(host, port, max_threads).serve_forever()
 
 
 if __name__ == "__main__":
