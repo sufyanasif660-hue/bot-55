@@ -32,7 +32,7 @@ jobs:
           ls -lh backups/
 
       - name: Upload dump artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: pg-backup-${{ github.run_id }}
           path: backups/*.sql.gz
